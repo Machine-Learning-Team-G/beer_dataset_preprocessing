@@ -7,6 +7,10 @@ import csv
 df1 = pd.read_csv('beer_reviews.csv', encoding="utf-8")
 df2 = pd.read_csv('train.csv', encoding="utf-8")
 
+# drop columns with NaN
+df1.dropna(inplace=True)
+df2.dropna(inplace=True)
+
 # remove non-ascii characters which cause errors
 df1.replace({r'[^\x00-\x7F]+': ''}, regex=True, inplace=True)
 df2.replace({r'[^\x00-\x7F]+': ''}, regex=True, inplace=True)
