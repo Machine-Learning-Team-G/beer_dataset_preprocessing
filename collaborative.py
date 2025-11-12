@@ -1,6 +1,8 @@
 import pandas as pd
-from surprise import Dataset, Reader, SVD
-from surprise.model_selection import cross_validate, train_test_split
+#from sklearn.preprocessing import StandardScaler, MinMaxScaler
+#from sklearn.decomposition import PCA
+from surprise import Dataset, Reader, SVD, NMF
+from surprise.model_selection import cross_validate, train_test_split, GridSearchCV
 from surprise import accuracy
 from collections import defaultdict
 import sys
@@ -42,6 +44,7 @@ def load_mapping_file(filepath, id_col_name, val_col_name):
         print(f"Error loading mapping file {filepath}: {e}")
         return pd.DataFrame(columns=[id_col_name, val_col_name]).set_index(id_col_name)
 
+
 print("Loading mapping files...")
 full_name_map = None
 try:
@@ -58,6 +61,25 @@ TRAIN_FILE_NAME = "training_set.csv"
 TEST_FILE_NAME = "testing_set.csv"
 LIKE_THRESHOLD = 4.0 # Unscaled ratings (1-5). "Liked" = 4.0 or higher.
 
+# Hyperparameters
+n_factors = 100
+n_epochs = 50
+
+
+def tuning(dataset): # 이걸 토대로 최적화를 진행하려 했으나 시간이 매우 오래 걸리는 문제가 발생해서 수작업으로 진행했습니다.
+    param_grid = {
+    "n_factors": [50, 100, 150],
+    "n_epochs": [20, 30, 50],
+    "lr_all": [0.002, 0.005, 0.01],
+    "reg_all": [0.02, 0.05, 0.1],
+    "biased": [True] 
+    }
+    gs = GridSearchCV(SVD, param_grid, measures=["rmse"], cv=3, joblib_verbose=0)
+    gs.fit(dataset)
+
+    print(gs.best_score["rmse"], gs.best_params["rmse"])
+
+
 try:
     print(f"\n--- Loading '{TRAIN_FILE_NAME}' for model training ---")
     train_df = pd.read_csv(TRAIN_FILE_NAME)
@@ -70,6 +92,7 @@ try:
     # -----------------------------------------------------------------
     # --- PART 1: PREPARE DATASET AND CROSS-VALIDATE (RMSE) ---
     # -----------------------------------------------------------------
+
     
     # The Reader object is needed to parse the unscaled ratings
     # The previous preprocessing step removed scaling, so we assume 1-5 scale.
@@ -78,6 +101,8 @@ try:
     # Load the training data into Surprise's format
     print("\nLoading training data into Surprise dataset...")
     train_data_surprise = Dataset.load_from_df(train_df[['profilename_encoded', 'beer_beerid', 'review_overall']], reader)
+    
+    # tuning(train_data_surprise)
     
     # Run 3-fold cross-validation (CV) on the *training set*
     # This gives us a baseline RMSE (Root Mean Squared Error)
@@ -94,7 +119,7 @@ try:
     trainset = train_data_surprise.build_full_trainset()
     
     # Instantiate and train the SVD model
-    model = SVD(n_factors=100, n_epochs=20, random_state=42)
+    model = SVD(n_factors, n_epochs, random_state=42, lr_all=0.01)
     model.fit(trainset)
     print("Model training complete.")
     
